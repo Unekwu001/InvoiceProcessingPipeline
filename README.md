@@ -119,9 +119,7 @@ for exactly what to capture:_
 - [ ] Application Insights end-to-end trace by correlation ID
 - [ ] Green GitHub Actions runs for both `deploy-infra` and `deploy-app`
 
-Source code alone is weaker evidence than source code plus proof it ran — this checklist is the
-difference between "I know Logic Apps" and something a hiring manager can independently verify.
-
+ 
 ## Honest limitations of this build
 
 - **Not compiled in the environment that produced it.** The sandbox that generated this code had
