@@ -141,7 +141,7 @@ difference between "I know Logic Apps" and something a hiring manager can indepe
 ## Author
 
 **Theophilus Unekwu Shaibu** — Senior Backend Engineer (.NET/C#, 9 years)
-Add your LinkedIn / portfolio site / contact email here before publishing.
+[Linkedin](https://www.linkedin.com/in/unekwutheoshaibu/).
 
 ## License
 
