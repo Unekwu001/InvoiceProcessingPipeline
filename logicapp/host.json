@@ -1,0 +1,29 @@
+{
+  "version": "2.0",
+  "extensionBundle": {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle.Workflows",
+    "version": "[1.*, 2.0.0)"
+  },
+  "extensions": {
+    "workflow": {
+      "settings": {
+        "Runtime.Trigger.RequestTrackingEnabled": "true",
+        "Runtime.ContentRootPathMode": "TrimContentRootPath"
+      }
+    }
+  },
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "excludedTypes": "Request"
+      }
+    },
+    "logLevel": {
+      "default": "Information",
+      "Microsoft": "Warning",
+      "Host.Results": "Information",
+      "Function.ProcessInvoiceWorkflow": "Information"
+    }
+  }
+}

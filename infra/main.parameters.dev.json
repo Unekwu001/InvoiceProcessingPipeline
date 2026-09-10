@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": { "value": "dev" },
+    "location": { "value": "eastus" },
+    "sqlAdministratorLogin": { "value": "invoiceprocadmin" },
+    "sqlAdministratorPassword": { "value": "PASSED_VIA_CLI_NOT_COMMITTED" },
+    "financeApproverEmail": { "value": "finance-approver@yourcompany.example" }
+  },
+  "_comment": "sqlAdministratorPassword here is a placeholder — never commit a real password. The deploy-infra.yml pipeline overrides it at deploy time with `--parameters sqlAdministratorPassword=$SQL_ADMIN_PASSWORD` sourced from a GitHub Actions secret."
+}

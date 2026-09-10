@@ -1,0 +1,78 @@
+name: Invoice Pipeline - Deploy Infrastructure
+
+# Deliberately separate from deploy-app.yml (see docs/architecture.md): infrastructure changes
+# rarely and is reviewed like any other change to shared resources; the app deploys far more
+# often and should never require re-running a full infra deployment.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: dev
+        type: choice
+        options: [dev, test, prod]
+  push:
+    branches: [main]
+    paths:
+      - "invoice-processing-pipeline/infra/**"
+
+permissions:
+  id-token: write   # required for OIDC federated login — no client secret is stored anywhere
+  contents: read
+
+jobs:
+  deploy-infra:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'dev' }}
+    defaults:
+      run:
+        working-directory: invoice-processing-pipeline
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC — no client secret)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure resource group exists
+        run: |
+          az group create \
+            --name "rg-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --location "eastus"
+
+      - name: Validate Bicep (what-if)
+        run: |
+          az deployment group what-if \
+            --resource-group "rg-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --template-file infra/main.bicep \
+            --parameters infra/main.parameters.${{ inputs.environment || 'dev' }}.json \
+            --parameters sqlAdministratorPassword="${{ secrets.SQL_ADMIN_PASSWORD }}"
+
+      - name: Deploy Bicep
+        run: |
+          az deployment group create \
+            --resource-group "rg-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --template-file infra/main.bicep \
+            --parameters infra/main.parameters.${{ inputs.environment || 'dev' }}.json \
+            --parameters sqlAdministratorPassword="${{ secrets.SQL_ADMIN_PASSWORD }}"
+
+      # Key Vault secrets are populated here, once, outside source control — never put a real
+      # connection string in a parameters.json file that gets committed.
+      - name: Seed Key Vault secrets (idempotent)
+        run: |
+          KV_NAME="kv-invoiceproc-${{ inputs.environment || 'dev' }}"
+          STORAGE_CONNSTR=$(az storage account show-connection-string \
+            --name "stinvoiceproc${{ inputs.environment || 'dev' }}" \
+            --resource-group "rg-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --query connectionString -o tsv)
+          az keyvault secret set --vault-name "$KV_NAME" --name "invoice-storage-connstr" --value "$STORAGE_CONNSTR"
+          SB_CONNSTR=$(az servicebus namespace authorization-rule keys list \
+            --resource-group "rg-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --namespace-name "sb-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --name RootManageSharedAccessKey --query primaryConnectionString -o tsv)
+          az keyvault secret set --vault-name "$KV_NAME" --name "invoice-sb-connstr" --value "$SB_CONNSTR"
+          echo "SQL connection string and function key are set manually / via a separate secure process — see docs/deployment-guide.md."

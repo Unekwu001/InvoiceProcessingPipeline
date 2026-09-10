@@ -1,0 +1,82 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34714.143
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InvoiceExtractionFunction", "function\InvoiceExtractionFunction\InvoiceExtractionFunction.csproj", "{4D3040D0-7921-4069-830E-525F7C15E8A0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InvoiceExtractionFunction.Tests", "function\InvoiceExtractionFunction.Tests\InvoiceExtractionFunction.Tests.csproj", "{156933A6-77D8-4D99-B64C-4AD7E24E852B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "logicapp", "logicapp", "{BBCCF33C-1E76-489D-B000-F72F44A13E17}"
+	ProjectSection(SolutionItems) = preProject
+		logicapp\connections.json = logicapp\connections.json
+		logicapp\host.json = logicapp\host.json
+		logicapp\local.settings.json.example = logicapp\local.settings.json.example
+		logicapp\.funcignore = logicapp\.funcignore
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ProcessInvoiceWorkflow", "ProcessInvoiceWorkflow", "{45A44749-9029-45EC-A196-C042EA00FADE}"
+	ProjectSection(SolutionItems) = preProject
+		logicapp\ProcessInvoiceWorkflow\workflow.json = logicapp\ProcessInvoiceWorkflow\workflow.json
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "HandleInvoiceFailure", "HandleInvoiceFailure", "{497C17EB-EDEB-4366-AF6B-A4C0F14B5E3B}"
+	ProjectSection(SolutionItems) = preProject
+		logicapp\HandleInvoiceFailure\workflow.json = logicapp\HandleInvoiceFailure\workflow.json
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "infra", "infra", "{CAD6C760-DC6F-42D6-9C53-E09CDE0A040F}"
+	ProjectSection(SolutionItems) = preProject
+		infra\main.bicep = infra\main.bicep
+		infra\main.parameters.dev.json = infra\main.parameters.dev.json
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "sql", "sql", "{12871CB9-EE59-4D05-9AD0-4E6BCEFEC3F7}"
+	ProjectSection(SolutionItems) = preProject
+		infra\sql\schema.sql = infra\sql\schema.sql
+		infra\sql\grant-managed-identity-access.sql = infra\sql\grant-managed-identity-access.sql
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{34840BB6-55B6-41F8-8204-479A28656304}"
+	ProjectSection(SolutionItems) = preProject
+		docs\architecture.md = docs\architecture.md
+		docs\deployment-guide.md = docs\deployment-guide.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows (CI-CD)", "workflows (CI-CD)", "{452CFD1E-AB95-4351-891B-523AF94E7DB8}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\deploy-infra.yml = .github\workflows\deploy-infra.yml
+		.github\workflows\deploy-app.yml = .github\workflows\deploy-app.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{903491BE-B7F6-4FF5-B97A-00DB361C6961}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+		LICENSE = LICENSE
+		.gitignore = .gitignore
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4D3040D0-7921-4069-830E-525F7C15E8A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D3040D0-7921-4069-830E-525F7C15E8A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D3040D0-7921-4069-830E-525F7C15E8A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D3040D0-7921-4069-830E-525F7C15E8A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{156933A6-77D8-4D99-B64C-4AD7E24E852B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{156933A6-77D8-4D99-B64C-4AD7E24E852B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{156933A6-77D8-4D99-B64C-4AD7E24E852B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{156933A6-77D8-4D99-B64C-4AD7E24E852B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{45A44749-9029-45EC-A196-C042EA00FADE} = {BBCCF33C-1E76-489D-B000-F72F44A13E17}
+		{497C17EB-EDEB-4366-AF6B-A4C0F14B5E3B} = {BBCCF33C-1E76-489D-B000-F72F44A13E17}
+		{12871CB9-EE59-4D05-9AD0-4E6BCEFEC3F7} = {CAD6C760-DC6F-42D6-9C53-E09CDE0A040F}
+	EndGlobalSection
+EndGlobal

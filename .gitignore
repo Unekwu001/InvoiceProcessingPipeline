@@ -1,0 +1,15 @@
+logicapp/local.settings.json
+logicapp/workflow-designtime/local.settings.json
+**/bin/
+**/obj/
+*.user
+.vs/
+host.snapshot*
+
+# Visual Studio / OS noise
+.DS_Store
+Thumbs.db
+*.suo
+*.userosscache
+*.sln.docstates
+.idea/

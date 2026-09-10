@@ -1,0 +1,25 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+    "WORKFLOWS_TENANT_ID": "<your-tenant-id>",
+    "WORKFLOWS_SUBSCRIPTION_ID": "<your-subscription-id>",
+    "WORKFLOWS_RESOURCE_GROUP_NAME": "rg-invoiceproc-dev",
+    "WORKFLOWS_LOCATION_NAME": "eastus",
+
+    "invoiceStorage_connectionString": "@Microsoft.KeyVault(SecretUri=https://kv-invoiceproc-dev.vault.azure.net/secrets/invoice-storage-connstr/)",
+    "invoiceSqlDb_connectionString": "@Microsoft.KeyVault(SecretUri=https://kv-invoiceproc-dev.vault.azure.net/secrets/invoice-sql-connstr/)",
+    "invoiceServiceBus_connectionString": "@Microsoft.KeyVault(SecretUri=https://kv-invoiceproc-dev.vault.azure.net/secrets/invoice-sb-connstr/)",
+    "invoiceExtractionFunction_baseUrl": "https://func-invoiceproc-dev.azurewebsites.net/api",
+    "invoiceExtractionFunction_key": "@Microsoft.KeyVault(SecretUri=https://kv-invoiceproc-dev.vault.azure.net/secrets/invoice-func-key/)",
+    "approvalThresholdAmount": "5000",
+
+    "APPINSIGHTS_INSTRUMENTATIONKEY": "<set-by-pipeline-not-committed>"
+  },
+  "Host": {
+    "LocalHttpPort": 7071,
+    "CORS": "*"
+  },
+  "_comment": "Copy this file to local.settings.json for local development ONLY. local.settings.json is git-ignored and must never be committed — it is the local, unencrypted stand-in for what Key Vault + app settings provide once deployed."
+}

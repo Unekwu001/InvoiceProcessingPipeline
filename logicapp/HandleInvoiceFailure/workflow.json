@@ -1,0 +1,100 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "correlationId": { "type": "string" },
+              "blobName": { "type": "string" },
+              "reason": {
+                "type": "string",
+                "enum": ["ExtractionServiceCallFailed", "FailedValidation", "RejectedByApprover"]
+              },
+              "extractionResult": { "type": "object" }
+            },
+            "required": ["correlationId", "blobName", "reason"]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Move_blob_to_failed_container": {
+        "type": "ServiceProvider",
+        "inputs": {
+          "parameters": {
+            "sourceBlobName": "@triggerBody()?['blobName']",
+            "sourceContainerName": "incoming-invoices",
+            "destinationContainerName": "failed"
+          },
+          "serviceProviderConfiguration": {
+            "operationId": "copyBlob",
+            "connectionName": "invoiceStorage",
+            "serviceProviderId": "/serviceProviders/AzureBlob"
+          }
+        },
+        "runAfter": {}
+      },
+      "Send_to_dead_letter_queue": {
+        "type": "ServiceProvider",
+        "inputs": {
+          "parameters": {
+            "queueName": "invoice-failures",
+            "messageBody": {
+              "correlationId": "@triggerBody()?['correlationId']",
+              "blobName": "@triggerBody()?['blobName']",
+              "reason": "@triggerBody()?['reason']",
+              "extractionResult": "@triggerBody()?['extractionResult']",
+              "failedAt": "@utcNow()"
+            }
+          },
+          "serviceProviderConfiguration": {
+            "operationId": "sendMessage",
+            "connectionName": "invoiceServiceBus",
+            "serviceProviderId": "/serviceProviders/serviceBus"
+          }
+        },
+        "runAfter": {
+          "Move_blob_to_failed_container": ["Succeeded", "Failed", "Skipped"]
+        }
+      },
+      "Notify_finance_team_of_failure": {
+        "type": "ApiConnection",
+        "inputs": {
+          "host": { "connection": { "referenceName": "teams" } },
+          "method": "post",
+          "path": "/v3/beta/teams/conversation/message/poster/@{encodeURIComponent('Flow bot')}/location/@{encodeURIComponent('Channel')}",
+          "body": {
+            "recipient": { "channelId": "@appsetting('financeAlertsChannelId')" },
+            "messageBody": "Invoice processing failed. Reason: @{triggerBody()?['reason']}. Correlation ID: @{triggerBody()?['correlationId']}. Blob: @{triggerBody()?['blobName']}. Check the invoice-failures queue and the Application Insights trace for this correlation ID."
+          },
+          "retryPolicy": { "type": "exponential", "count": 2, "interval": "PT15S" }
+        },
+        "runAfter": {
+          "Send_to_dead_letter_queue": ["Succeeded", "Failed", "Skipped"]
+        }
+      },
+      "Response": {
+        "type": "Response",
+        "kind": "Http",
+        "inputs": {
+          "statusCode": 200,
+          "body": {
+            "handled": true,
+            "correlationId": "@triggerBody()?['correlationId']"
+          }
+        },
+        "runAfter": {
+          "Notify_finance_team_of_failure": ["Succeeded", "Failed", "Skipped"]
+        }
+      }
+    },
+    "outputs": {}
+  },
+  "kind": "Stateful"
+}

@@ -1,0 +1,136 @@
+name: Invoice Pipeline - Build and Deploy App
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: dev
+        type: choice
+        options: [dev, test, prod]
+  push:
+    branches: [main]
+    paths:
+      - "invoice-processing-pipeline/logicapp/**"
+      - "invoice-processing-pipeline/function/**"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-test-function:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: invoice-processing-pipeline/function
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      # Unit tests run before anything is packaged — a failing InvoiceFieldMapper test blocks
+      # the deploy rather than shipping a bad mapping rule to production.
+      - name: Run unit tests
+        run: dotnet test InvoiceExtractionFunction.Tests/InvoiceExtractionFunction.Tests.csproj --configuration Release --logger "trx;LogFileName=test-results.trx"
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Invoice Function unit tests
+          path: "invoice-processing-pipeline/function/**/*.trx"
+          reporter: dotnet-trx
+
+      - name: Publish function
+        run: dotnet publish InvoiceExtractionFunction/InvoiceExtractionFunction.csproj --configuration Release --output ./publish
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: invoice-extraction-function
+          path: invoice-processing-pipeline/function/publish
+
+  package-logic-app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: invoice-processing-pipeline/logicapp
+    steps:
+      - uses: actions/checkout@v4
+
+      # This is the step Microsoft's DevOps guidance calls out specifically: connections.json is
+      # authored with "Raw" auth for local development against short-lived keys; before packaging
+      # for any real environment it must be flipped to ManagedServiceIdentity so the deployed
+      # Logic App authenticates with its own identity, never a key.
+      - name: Set managed API connection auth to ManagedServiceIdentity
+        run: |
+          jq '(.managedApiConnections[]?.authentication.type) |= "ManagedServiceIdentity"' connections.json > connections.json.tmp
+          mv connections.json.tmp connections.json
+
+      - name: Package Logic App artifact (root-level zip, no parent folder)
+        run: |
+          zip -r ../logicapp-package.zip . -x ".vscode/*" -x "local.settings.json" -x "*.example"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: logicapp-package
+          path: invoice-processing-pipeline/logicapp-package.zip
+
+  deploy:
+    needs: [build-and-test-function, package-logic-app]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'dev' }}
+    steps:
+      - name: Azure login (OIDC — no client secret)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: invoice-extraction-function
+          path: ./function-publish
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: logicapp-package
+          path: ./logicapp-artifact
+
+      - name: Deploy Function App (zip deploy)
+        run: |
+          cd function-publish && zip -r ../function-package.zip . && cd ..
+          az functionapp deployment source config-zip \
+            --resource-group "rg-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --name "func-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --src function-package.zip
+
+      # --clean false preserves any workflow run history / state already in the target Logic App
+      # instead of wiping it — see the "workflow overwrite" row in docs/architecture.md's
+      # cross-cutting practices table.
+      - name: Deploy Logic App workflows (zip deploy)
+        run: |
+          az logicapp deployment source config-zip \
+            --resource-group "rg-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --name "logicapp-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --src logicapp-artifact/logicapp-package.zip \
+            --clean false
+
+      - name: Smoke test - confirm the Logic App is running
+        run: |
+          STATE=$(az logicapp show \
+            --resource-group "rg-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --name "logicapp-invoiceproc-${{ inputs.environment || 'dev' }}" \
+            --query state -o tsv)
+          echo "Logic App state: $STATE"
+          if [ "$STATE" != "Running" ]; then
+            echo "::error::Logic App is not in a Running state post-deploy."
+            exit 1
+          fi

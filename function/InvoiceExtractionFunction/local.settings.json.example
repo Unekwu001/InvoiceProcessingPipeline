@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "InvoiceStorage__blobServiceUri": "https://stinvoiceprocdev.blob.core.windows.net",
+    "DocumentIntelligence__endpoint": "https://docint-invoiceproc-dev.cognitiveservices.azure.com",
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "<set-by-pipeline-not-committed>"
+  },
+  "_comment": "Local dev authenticates to both Blob Storage and Document Intelligence via DefaultAzureCredential (az login / VS Code sign-in), so your own Azure AD identity needs 'Storage Blob Data Reader' on the storage account and 'Cognitive Services User' on the Document Intelligence resource for local runs to work. No keys are used anywhere in this project."
+}

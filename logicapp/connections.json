@@ -1,0 +1,49 @@
+{
+  "serviceProviderConnections": {
+    "invoiceStorage": {
+      "parameterValues": {
+        "connectionString": "@appsetting('invoiceStorage_connectionString')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/AzureBlob"
+      },
+      "displayName": "invoiceStorage"
+    },
+    "invoiceServiceBus": {
+      "parameterValues": {
+        "connectionString": "@appsetting('invoiceServiceBus_connectionString')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/serviceBus"
+      },
+      "displayName": "invoiceServiceBus"
+    }
+  },
+  "managedApiConnections": {
+    "teams": {
+      "api": {
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/providers/Microsoft.Web/locations/@{appsetting('WORKFLOWS_LOCATION_NAME')}/managedApis/teams"
+      },
+      "connection": {
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/teams"
+      },
+      "connectionRuntimeUrl": "@appsetting('teams_connectionRuntimeUrl')",
+      "authentication": {
+        "type": "ManagedServiceIdentity"
+      }
+    },
+    "sql": {
+      "api": {
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/providers/Microsoft.Web/locations/@{appsetting('WORKFLOWS_LOCATION_NAME')}/managedApis/sql"
+      },
+      "connection": {
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/sql"
+      },
+      "connectionRuntimeUrl": "@appsetting('sql_connectionRuntimeUrl')",
+      "authentication": {
+        "type": "ManagedServiceIdentity"
+      }
+    }
+  },
+  "_comment": "Locally, 'authentication.type' is 'Raw' with a short-lived key while you build/test in VS Code. The CI pipeline flips it to 'ManagedServiceIdentity' before packaging for deployment (see .github/workflows/deploy.yml, step 'Set connection auth to managed identity') so no key ever reaches a deployed environment. Every value here is an @appsetting()/@parameters() reference — nothing environment-specific is hardcoded, so this exact file deploys unchanged to dev, test, and prod."
+}

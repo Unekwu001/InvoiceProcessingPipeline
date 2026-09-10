@@ -1,0 +1,258 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "approvalThresholdAmount": {
+        "type": "int",
+        "defaultValue": 5000
+      },
+      "financeApproverEmail": {
+        "type": "string",
+        "defaultValue": "@appsetting('financeApproverEmail')"
+      }
+    },
+    "triggers": {
+      "When_an_invoice_blob_is_added": {
+        "type": "ServiceProvider",
+        "inputs": {
+          "parameters": {
+            "containerName": "incoming-invoices"
+          },
+          "serviceProviderConfiguration": {
+            "operationId": "whenABlobIsAdded",
+            "connectionName": "invoiceStorage",
+            "serviceProviderId": "/serviceProviders/AzureBlob"
+          }
+        },
+        "recurrence": {
+          "frequency": "Minute",
+          "interval": 1
+        },
+        "splitOn": "@triggerOutputs()?['body']"
+      }
+    },
+    "actions": {
+      "Initialize_correlationId": {
+        "type": "InitializeVariable",
+        "inputs": {
+          "variables": [
+            {
+              "name": "correlationId",
+              "type": "string",
+              "value": "@{workflow().run.name}"
+            }
+          ]
+        },
+        "runAfter": {}
+      },
+      "Extract_invoice_data": {
+        "type": "Http",
+        "inputs": {
+          "method": "POST",
+          "uri": "@{appsetting('invoiceExtractionFunction_baseUrl')}/ExtractInvoiceData",
+          "headers": {
+            "x-functions-key": "@appsetting('invoiceExtractionFunction_key')",
+            "x-correlation-id": "@variables('correlationId')"
+          },
+          "body": {
+            "blobName": "@triggerBody()?['Name']",
+            "containerName": "incoming-invoices"
+          },
+          "retryPolicy": {
+            "type": "exponential",
+            "count": 3,
+            "interval": "PT10S",
+            "maximumInterval": "PT1M"
+          }
+        },
+        "runAfter": {
+          "Initialize_correlationId": ["Succeeded"]
+        }
+      },
+      "Validate_extraction": {
+        "type": "If",
+        "expression": {
+          "and": [
+            { "greater": ["@body('Extract_invoice_data')?['totalAmount']", 0] },
+            { "not": { "equals": ["@body('Extract_invoice_data')?['vendorName']", null] } },
+            { "not": { "equals": ["@body('Extract_invoice_data')?['invoiceNumber']", null] } }
+          ]
+        },
+        "actions": {
+          "Requires_approval": {
+            "type": "If",
+            "expression": {
+              "greaterOrEquals": ["@body('Extract_invoice_data')?['totalAmount']", "@parameters('approvalThresholdAmount')"]
+            },
+            "actions": {
+              "Post_adaptive_card_and_wait_for_response": {
+                "type": "ApiConnectionWebhook",
+                "inputs": {
+                  "host": {
+                    "connection": { "referenceName": "teams" }
+                  },
+                  "body": {
+                    "recipient": { "to": "@parameters('financeApproverEmail')" },
+                    "messageBody": "Invoice @{body('Extract_invoice_data')?['invoiceNumber']} from @{body('Extract_invoice_data')?['vendorName']} for @{body('Extract_invoice_data')?['totalAmount']} needs approval.",
+                    "notificationUrl": "@{listCallbackUrl()}"
+                  },
+                  "path": "/flowbot/adaptivecard/twooptions/wait/{approver}",
+                  "pathParameters": { "approver": "@parameters('financeApproverEmail')" }
+                },
+                "runAfter": {}
+              },
+              "Approved": {
+                "type": "If",
+                "expression": {
+                  "equals": ["@body('Post_adaptive_card_and_wait_for_response')?['data']?['SelectedOption']", "Approve"]
+                },
+                "actions": {
+                  "Write_approved_invoice_to_SQL": {
+                    "type": "ApiConnection",
+                    "inputs": {
+                      "host": { "connection": { "referenceName": "sql" } },
+                      "method": "post",
+                      "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('default'))}/tables/@{encodeURIComponent(encodeURIComponent('dbo.Invoices'))}/items",
+                      "body": {
+                        "InvoiceNumber": "@body('Extract_invoice_data')?['invoiceNumber']",
+                        "VendorName": "@body('Extract_invoice_data')?['vendorName']",
+                        "TotalAmount": "@body('Extract_invoice_data')?['totalAmount']",
+                        "DueDate": "@body('Extract_invoice_data')?['dueDate']",
+                        "Status": "Approved",
+                        "CorrelationId": "@variables('correlationId')"
+                      },
+                      "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT10S" }
+                    },
+                    "runAfter": {}
+                  },
+                  "Move_blob_to_processed": {
+                    "type": "ServiceProvider",
+                    "inputs": {
+                      "parameters": {
+                        "sourceBlobName": "@triggerBody()?['Name']",
+                        "sourceContainerName": "incoming-invoices",
+                        "destinationContainerName": "processed"
+                      },
+                      "serviceProviderConfiguration": {
+                        "operationId": "copyBlob",
+                        "connectionName": "invoiceStorage",
+                        "serviceProviderId": "/serviceProviders/AzureBlob"
+                      }
+                    },
+                    "runAfter": { "Write_approved_invoice_to_SQL": ["Succeeded"] }
+                  }
+                },
+                "else": {
+                  "actions": {
+                    "Handle_rejected_invoice": {
+                      "type": "Workflow",
+                      "inputs": {
+                        "host": {
+                          "workflow": { "id": "HandleInvoiceFailure" }
+                        },
+                        "body": {
+                          "correlationId": "@variables('correlationId')",
+                          "blobName": "@triggerBody()?['Name']",
+                          "reason": "RejectedByApprover",
+                          "extractionResult": "@body('Extract_invoice_data')"
+                        },
+                        "retryPolicy": { "type": "exponential", "count": 2, "interval": "PT15S" }
+                      },
+                      "runAfter": {}
+                    }
+                  }
+                },
+                "runAfter": {
+                  "Post_adaptive_card_and_wait_for_response": ["Succeeded"]
+                }
+              }
+            },
+            "else": {
+              "actions": {
+                "Write_autoapproved_invoice_to_SQL": {
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "host": { "connection": { "referenceName": "sql" } },
+                    "method": "post",
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('default'))}/tables/@{encodeURIComponent(encodeURIComponent('dbo.Invoices'))}/items",
+                    "body": {
+                      "InvoiceNumber": "@body('Extract_invoice_data')?['invoiceNumber']",
+                      "VendorName": "@body('Extract_invoice_data')?['vendorName']",
+                      "TotalAmount": "@body('Extract_invoice_data')?['totalAmount']",
+                      "DueDate": "@body('Extract_invoice_data')?['dueDate']",
+                      "Status": "AutoApproved",
+                      "CorrelationId": "@variables('correlationId')"
+                    },
+                    "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT10S" }
+                  },
+                  "runAfter": {}
+                },
+                "Move_autoapproved_blob_to_processed": {
+                  "type": "ServiceProvider",
+                  "inputs": {
+                    "parameters": {
+                      "sourceBlobName": "@triggerBody()?['Name']",
+                      "sourceContainerName": "incoming-invoices",
+                      "destinationContainerName": "processed"
+                    },
+                    "serviceProviderConfiguration": {
+                      "operationId": "copyBlob",
+                      "connectionName": "invoiceStorage",
+                      "serviceProviderId": "/serviceProviders/AzureBlob"
+                    }
+                  },
+                  "runAfter": { "Write_autoapproved_invoice_to_SQL": ["Succeeded"] }
+                }
+              }
+            },
+            "runAfter": {}
+          }
+        },
+        "else": {
+          "actions": {
+            "Handle_invalid_extraction": {
+              "type": "Workflow",
+              "inputs": {
+                "host": {
+                  "workflow": { "id": "HandleInvoiceFailure" }
+                },
+                "body": {
+                  "correlationId": "@variables('correlationId')",
+                  "blobName": "@triggerBody()?['Name']",
+                  "reason": "FailedValidation",
+                  "extractionResult": "@body('Extract_invoice_data')"
+                },
+                "retryPolicy": { "type": "exponential", "count": 2, "interval": "PT15S" }
+              },
+              "runAfter": {}
+            }
+          }
+        },
+        "runAfter": {
+          "Extract_invoice_data": ["Succeeded"]
+        }
+      },
+      "Handle_extraction_call_failure": {
+        "type": "Workflow",
+        "inputs": {
+          "host": {
+            "workflow": { "id": "HandleInvoiceFailure" }
+          },
+          "body": {
+            "correlationId": "@variables('correlationId')",
+            "blobName": "@triggerBody()?['Name']",
+            "reason": "ExtractionServiceCallFailed",
+            "extractionResult": "@actions('Extract_invoice_data')?['outputs']"
+          },
+          "retryPolicy": { "type": "exponential", "count": 2, "interval": "PT15S" }
+        },
+        "runAfter": {
+          "Extract_invoice_data": ["Failed", "TimedOut"]
+        }
+      }
+    },
+    "outputs": {}
+  },
+  "kind": "Stateful"
+}
